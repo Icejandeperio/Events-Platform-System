@@ -1,0 +1,51 @@
+{
+  "compilerOptions": {
+    /* Target & module */
+    "target": "ES2022",
+    "lib": ["dom", "dom.iterable", "esnext"],
+    "module": "esnext",
+    "moduleResolution": "bundler",
+    "resolveJsonModule": true,
+    "isolatedModules": true,
+    "jsx": "preserve",
+
+    /* Emit */
+    "noEmit": true,
+    "incremental": true,
+
+    /* Strict mode — all of strict plus extras */
+    "strict": true,
+    "noImplicitAny": true,
+    "noUncheckedIndexedAccess": true,
+    "noImplicitReturns": true,
+    "noFallthroughCasesInSwitch": true,
+    "noUnusedLocals": true,
+    "noUnusedParameters": true,
+    "exactOptionalPropertyTypes": true,
+    "forceConsistentCasingInFileNames": true,
+
+    /* Interop */
+    "allowJs": false,
+    "esModuleInterop": true,
+    "skipLibCheck": true,
+
+    /* Next.js plugin */
+    "plugins": [{ "name": "next" }],
+
+    /* Path aliases — hexagonal layers + shared (no baseUrl; deprecated in TS 6 bundler mode) */
+    "paths": {
+      "@domain/*":         ["./src/domain/*"],
+      "@application/*":    ["./src/application/*"],
+      "@infrastructure/*": ["./src/infrastructure/*"],
+      "@interfaces/*":     ["./src/interfaces/*"],
+      "@shared/*":         ["./src/shared/*"]
+    }
+  },
+  "include": [
+    "next-env.d.ts",
+    "src/**/*.ts",
+    "src/**/*.tsx",
+    ".next/types/**/*.ts"
+  ],
+  "exclude": ["node_modules"]
+}
