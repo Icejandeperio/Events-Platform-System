@@ -1,0 +1,31 @@
+@import 'tailwindcss';
+
+/*
+  Tenant design tokens — defined under @theme so Tailwind v4 utilities
+  pick them up automatically (docs/DESIGN.md §2).
+
+  Accent color is overridden per-tenant at runtime via a CSS variable swap
+  in the tenant layout; the defaults here are a neutral starting point.
+*/
+@theme {
+  /* Radius */
+  --radius: 0.625rem;
+
+  /* Tenant accent (override per-tenant; must pass 4.5:1 against white) */
+  --color-accent: oklch(55% 0.2 250);
+  --color-accent-foreground: oklch(98% 0 0);
+
+  /* Semantic colors */
+  --color-success: oklch(55% 0.17 145);
+  --color-warning: oklch(70% 0.18 75);
+  --color-destructive: oklch(55% 0.22 25);
+
+  /* Typography scale (rem) */
+  --text-xs: 0.75rem;
+  --text-sm: 0.875rem;
+  --text-base: 1rem;
+  --text-lg: 1.25rem;
+  --text-xl: 1.5rem;
+  --text-2xl: 2rem;
+  --text-3xl: 2.5rem;
+}
