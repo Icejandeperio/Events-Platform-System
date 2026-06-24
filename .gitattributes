@@ -1,0 +1,11 @@
+# Normalize all text files to LF in the repo; editors handle local conversion
+* text=auto eol=lf
+
+# Force binary — never mangle these
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.ico binary
+*.pdf binary
+*.woff2 binary
+*.woff binary
