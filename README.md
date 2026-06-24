@@ -42,20 +42,20 @@ follow Conventional Commits (`CONTRIBUTING.md`); `CHANGELOG.md` is generated.
 
 ## Documentation map
 
-| Topic | File |
-|---|---|
-| Agent/human operating manual | `CLAUDE.md` |
-| Architecture & module map | `docs/ARCHITECTURE.md` |
-| Security standards | `docs/SECURITY.md` |
-| Data-privacy & compliance | `docs/COMPLIANCE.md` |
-| UI/UX standards | `docs/UIUX.md` |
-| Design system & page inventory | `docs/DESIGN.md` |
-| Modules & entitlements | `docs/FEATURES.md` |
-| Documentation discipline | `docs/DOCUMENTATION.md` |
-| Definition of Done | `docs/DEFINITION_OF_DONE.md` |
-| Glossary | `docs/GLOSSARY.md` |
-| Architecture decisions | `docs/adr/` |
+| Topic                          | File                         |
+| ------------------------------ | ---------------------------- |
+| Agent/human operating manual   | `CLAUDE.md`                  |
+| Architecture & module map      | `docs/ARCHITECTURE.md`       |
+| Security standards             | `docs/SECURITY.md`           |
+| Data-privacy & compliance      | `docs/COMPLIANCE.md`         |
+| UI/UX standards                | `docs/UIUX.md`               |
+| Design system & page inventory | `docs/DESIGN.md`             |
+| Modules & entitlements         | `docs/FEATURES.md`           |
+| Documentation discipline       | `docs/DOCUMENTATION.md`      |
+| Definition of Done             | `docs/DEFINITION_OF_DONE.md` |
+| Glossary                       | `docs/GLOSSARY.md`           |
+| Architecture decisions         | `docs/adr/`                  |
 
 ## License
 
-Proprietary. © Philippine Adventure Tour / TenantKit. All rights reserved.
+Proprietary. © TenantKit. All rights reserved.
