@@ -24,6 +24,12 @@
   },
   "devDependencies": {
     "@types/node": "^22.20.0",
-    "typescript": "^6.0.3"
+    "eslint": "^10.5.0",
+    "eslint-config-prettier": "^10.1.8",
+    "eslint-plugin-jsdoc": "^63.0.7",
+    "eslint-plugin-tsdoc": "^0.5.2",
+    "prettier": "^3.8.4",
+    "typescript": "^6.0.3",
+    "typescript-eslint": "^8.62.0"
   }
 }
