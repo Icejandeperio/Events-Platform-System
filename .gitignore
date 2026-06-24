@@ -1,0 +1,40 @@
+# Dependencies
+node_modules/
+.pnp
+.pnp.js
+
+# Next.js
+.next/
+out/
+build/
+
+# Environment — NEVER commit real env files
+.env
+.env.*
+!.env.example
+
+# Drizzle
+drizzle/meta/
+
+# Storage (local adapter)
+storage/
+
+# Testing
+coverage/
+.vitest/
+
+# Misc
+.DS_Store
+*.pem
+Thumbs.db
+*.log
+*.tsbuildinfo
+next-env.d.ts
+
+# IDE
+.idea/
+.vscode/
+*.swp
+
+# Release / changeset scratch
+.changeset/

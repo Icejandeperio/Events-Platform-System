@@ -1,0 +1,25 @@
+{
+  "name": "tenantkit",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Multi-tenant event registration and payment-management SaaS",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "dev": "next dev --turbopack",
+    "build": "next build",
+    "start": "next start",
+    "db:up": "docker compose up -d postgres",
+    "db:down": "docker compose down",
+    "db:migrate": "drizzle-kit migrate",
+    "db:push": "drizzle-kit push",
+    "db:studio": "drizzle-kit studio",
+    "db:seed": "tsx src/infrastructure/db/seed.ts",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "lint": "eslint . && depcruise src",
+    "typecheck": "tsc --noEmit",
+    "check": "npm run lint && npm run typecheck && npm run test"
+  }
+}
