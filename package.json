@@ -38,6 +38,7 @@
     "@types/node": "^22.20.0",
     "@types/react": "^19.2.17",
     "@types/react-dom": "^19.2.3",
+    "@vitest/coverage-v8": "^4.1.9",
     "dependency-cruiser": "^17.4.3",
     "drizzle-kit": "^0.31.10",
     "eslint": "^10.5.0",
@@ -48,7 +49,8 @@
     "lint-staged": "^15.5.2",
     "prettier": "^3.8.4",
     "typescript": "^6.0.3",
-    "typescript-eslint": "^8.62.0"
+    "typescript-eslint": "^8.62.0",
+    "vitest": "^4.1.9"
   },
   "dependencies": {
     "@tailwindcss/postcss": "^4.3.1",
