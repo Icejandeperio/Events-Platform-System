@@ -1,6 +1,8 @@
 import { betterAuth } from 'better-auth';
 import { organization } from 'better-auth/plugins';
 import { drizzleAdapter } from 'better-auth/adapters/drizzle';
+import { db } from '../db/client';
+import * as schema from '../db/schema';
 
 /**
  * Platform-level user roles stored on the `user` table.
@@ -31,39 +33,36 @@ export type TenantMemberRole = 'owner' | 'admin' | 'member';
  * the `tenant_id` consumed by `withTenant()` to set the RLS context.
  * See ADR 0004 for the full mapping and super_admin placement.
  *
- * The `db` adapter is wired at runtime via the composition root
- * (src/app/_bootstrap/) so the schema is injected after Drizzle initialises.
- * This file exports the `auth` instance for import by Next.js route handlers.
+ * `advanced.generateId` returns `crypto.randomUUID()` so all Better Auth
+ * generated IDs are UUID strings — required for `organization.id uuid`
+ * to serve as `tenant_id` in application tables (ADR 0001).
  */
 export const auth = betterAuth({
-  database: drizzleAdapter(
-    // Drizzle instance is injected at module level here for simplicity;
-    // the composition root pattern (src/app/_bootstrap/) will replace this
-    // with a proper DI binding in Stage 1 once the schema exists.
-    null as never,
-    { provider: 'pg' },
-  ),
+  database: drizzleAdapter(db, {
+    provider: 'pg',
+    schema: {
+      user: schema.user,
+      session: schema.session,
+      account: schema.account,
+      verification: schema.verification,
+      organization: schema.organization,
+      member: schema.member,
+      invitation: schema.invitation,
+    },
+  }),
 
   plugins: [
     organization({
-      // Allow any authenticated user to create a new tenant org (super_admin gates
-      // tenant creation via a server action before calling this).
       allowUserToCreateOrganization: false,
-
-      // Custom member roles mapped to our RBAC model (ADR 0004).
       membershipRoles: ['owner', 'admin', 'member'],
     }),
   ],
 
-  // Session configuration
   session: {
-    // Short-lived sessions; admins are re-prompted after 2h idle (SECURITY.md §2).
     expiresIn: 60 * 60 * 24 * 7, // 7 days absolute
     updateAge: 60 * 60 * 24, // refresh session cookie daily
   },
 
-  // super_admin is flagged on the user table, not via org membership.
-  // Better Auth supports extending the user schema with additional fields.
   user: {
     additionalFields: {
       platformRole: {
@@ -72,6 +71,14 @@ export const auth = betterAuth({
         defaultValue: 'user' satisfies PlatformRole,
         input: false, // not client-settable
       },
+    },
+  },
+
+  advanced: {
+    database: {
+      // All Better Auth-generated IDs are UUIDs so organization.id (typed uuid)
+      // can serve as the FK target for tenant_id in application tables.
+      generateId: () => crypto.randomUUID(),
     },
   },
 });

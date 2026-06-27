@@ -1,12 +1,13 @@
+import { sql } from 'drizzle-orm';
+import { db, type AppDbTx } from '../db/client';
 import type { Session } from './auth';
 
 /**
- * Tenant-context result from resolving a request's tenant.
+ * Tenant-context resolved from a Better Auth session.
  *
  * @remarks
- * Used by `withTenant()` to pass the resolved tenant ID and session
- * down to the Drizzle query executor (Stage 1 will wire this to a real
- * Drizzle instance via `SET LOCAL app.current_tenant`).
+ * Returned by `resolveTenantContext()` and consumed internally by `withTenant()`
+ * to set `app.current_tenant` before executing a DB callback.
  */
 export interface TenantContext {
   /** The resolved tenant UUID — set as `app.current_tenant` in Postgres RLS. */
@@ -21,23 +22,13 @@ export interface TenantContext {
  * Resolves the tenant context from a Better Auth session.
  *
  * @remarks
- * This is the gateway to `SET LOCAL app.current_tenant` in every DB
- * transaction (ADR 0001, ADR 0004, ARCHITECTURE.md §4). Rules:
- * 1. If the user has `platformRole === 'super_admin'`, the `tenantId`
- *    must be explicitly provided by the caller (never from the session);
- *    the super_admin context is audited separately.
- * 2. For all other roles the `tenantId` is `session.session.activeOrganizationId`.
- * 3. If `activeOrganizationId` is null and the caller is not super_admin,
- *    we throw — there is no valid tenant context.
- *
- * In Stage 1 this function will open a Drizzle transaction and run
- * `SET LOCAL app.current_tenant = <tenantId>` before executing the
- * callback. The skeleton here returns the resolved context only.
+ * Rules (ADR 0004):
+ * 1. `super_admin` → `superAdminTargetTenantId` is required; throws if absent.
+ * 2. All other roles → `tenantId` = `session.session.activeOrganizationId`.
+ * 3. Missing active org for a non-admin → throws (no valid tenant context).
  * @param session - A validated Better Auth session.
- * @param superAdminTargetTenantId - Required when caller is super_admin;
- *   the tenant they are explicitly targeting for this operation.
+ * @param superAdminTargetTenantId - Required when caller is super_admin.
  * @returns The resolved `TenantContext`.
- * @throws Error when tenant context cannot be determined.
  */
 export function resolveTenantContext(
   session: Session,
@@ -54,7 +45,14 @@ export function resolveTenantContext(
     return { tenantId: superAdminTargetTenantId, session, isSuperAdmin: true };
   }
 
-  const tenantId = session.session.activeOrganizationId;
+  // Better Auth's organization plugin adds activeOrganizationId to the session
+  // record at runtime. The TypeScript $Infer.Session type doesn't reflect this
+  // automatically — the cast is safe because the Drizzle schema and org plugin
+  // both define the column.
+  const tenantId = (session.session as Record<string, unknown>)['activeOrganizationId'] as
+    | string
+    | null
+    | undefined;
   if (!tenantId) {
     throw new Error(
       'No active organization on session — cannot determine tenant context. ' +
@@ -63,4 +61,51 @@ export function resolveTenantContext(
   }
 
   return { tenantId, session, isSuperAdmin: false };
+}
+
+/**
+ * Executes a database callback inside a tenant-scoped transaction.
+ *
+ * @remarks
+ * Opens a Drizzle transaction, runs `SET LOCAL app.current_tenant = <tenantId>`,
+ * then calls `fn` with the transaction handle. RLS policies on all tenant
+ * tables filter by this setting automatically (ADR 0001, ARCHITECTURE.md §4).
+ *
+ * For super_admin callers: the `tenantId` comes from the explicit
+ * `superAdminTargetTenantId` parameter (never from the session), ensuring
+ * cross-tenant access is always audited and intentional (ADR 0004).
+ * @param session - A validated Better Auth session.
+ * @param fn - Callback that receives the RLS-scoped transaction.
+ * @param superAdminTargetTenantId - Required when caller is super_admin.
+ * @returns The return value of `fn`.
+ */
+export async function withTenant<T>(
+  session: Session,
+  fn: (tx: AppDbTx) => Promise<T>,
+  superAdminTargetTenantId?: string,
+): Promise<T> {
+  const { tenantId } = resolveTenantContext(session, superAdminTargetTenantId);
+  return executeInTenantContext(tenantId, fn);
+}
+
+/**
+ * Low-level helper: opens a transaction and sets `app.current_tenant`.
+ *
+ * @remarks
+ * Called by `withTenant()` and directly by integration tests that supply a
+ * raw tenant UUID without constructing a full session.
+ * @param tenantId - The UUID of the target tenant.
+ * @param fn - Callback that receives the RLS-scoped transaction.
+ * @returns The return value of `fn`.
+ */
+export async function executeInTenantContext<T>(
+  tenantId: string,
+  fn: (tx: AppDbTx) => Promise<T>,
+): Promise<T> {
+  return db.transaction(async (tx) => {
+    // SET LOCAL is transaction-scoped — it is automatically cleared when the
+    // transaction commits or rolls back (no cross-request leakage possible).
+    await tx.execute(sql`SELECT set_config('app.current_tenant', ${tenantId}, true)`);
+    return fn(tx);
+  });
 }

@@ -20,7 +20,7 @@ jobs:
         image: postgres:16-alpine
         env:
           POSTGRES_USER: tenantkit
-          POSTGRES_PASSWORD: tenantkit
+          POSTGRES_PASSWORD: tenantkit_dev
           POSTGRES_DB: tenantkit_dev
         ports:
           - 5432:5432
@@ -31,7 +31,11 @@ jobs:
           --health-retries 5
 
     env:
-      DATABASE_URL: postgresql://tenantkit:tenantkit@localhost:5432/tenantkit_dev
+      # Superuser — matches POSTGRES_USER/PASSWORD/DB in the service container above.
+      DATABASE_URL: postgresql://tenantkit:tenantkit_dev@localhost:5432/tenantkit_dev
+      # App role — created by migration 0001_app_role_force_rls.sql (non-BYPASSRLS).
+      # Password matches the hardcoded dev credential in that migration.
+      APP_DATABASE_URL: postgresql://tenantkit_app:tenantkit_pass@localhost:5432/tenantkit_dev
       BETTER_AUTH_SECRET: ci-test-secret-not-for-production
       BETTER_AUTH_URL: http://localhost:3000
       NEXT_PUBLIC_APP_URL: http://localhost:3000
@@ -52,6 +56,11 @@ jobs:
       - name: Prepare Next.js types
         run: |
           printf '/// <reference types="next" />\n/// <reference types="next/image-types/global" />\n' > next-env.d.ts
+
+      # Apply all migrations (creates tables, RLS policies, app role, FORCE RLS).
+      # Must run BEFORE npm run check so integration tests find existing tables.
+      - name: Apply database migrations
+        run: npm run db:migrate
 
       - name: Run full check (lint + typecheck + test)
         run: npm run check

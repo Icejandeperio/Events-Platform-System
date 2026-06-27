@@ -2,10 +2,15 @@
  * Drizzle schema barrel — re-exports all table definitions.
  *
  * @remarks
- * Table definitions are added here in Stage 1. Every tenant-owned table must
- * have a `tenant_id uuid not null` column and a matching RLS policy
- * (see docs/ARCHITECTURE.md §4 and ADR 0001).
+ * Import from this barrel in the Drizzle client and drizzle-kit config.
+ * Every tenant-owned table has `tenant_id uuid NOT NULL` with an RLS policy
+ * enforcing `tenant_id = current_setting('app.current_tenant')::uuid`
+ * (ARCHITECTURE.md §4, ADR 0001, ADR 0004).
  */
 
-// Stage 1 will add: tenants, users, events, registrations, payments, ...
-export {};
+export * from './auth';
+export * from './events';
+export * from './participants';
+export * from './payments';
+export * from './entitlements';
+export * from './compliance';
