@@ -19,7 +19,20 @@ import * as schema from '../schema';
 const DB_URL = process.env['DATABASE_URL'];
 const APP_URL = process.env['APP_DATABASE_URL'];
 
-// ── Skip gracefully when DB is not available ──────────────────────────────────
+// In CI, silently skipping would mask a misconfigured runner — fail loudly instead.
+if (process.env['CI'] && (!DB_URL || !APP_URL)) {
+  throw new Error(
+    [
+      'Isolation test cannot be skipped in CI — missing required env vars:',
+      !DB_URL ? '  DATABASE_URL (superuser connection for setup/teardown)' : '',
+      !APP_URL ? '  APP_DATABASE_URL (app-role connection for RLS assertions)' : '',
+    ]
+      .filter(Boolean)
+      .join('\n'),
+  );
+}
+
+// ── Skip gracefully when DB is not available (local dev only) ─────────────────
 describe.skipIf(!DB_URL || !APP_URL)('two-tenant isolation (RLS)', () => {
   // Test-local tenant + event IDs — chosen to avoid colliding with seed data.
   const TENANT_A = 'aaaaaaaa-0000-4000-a000-000000000001';

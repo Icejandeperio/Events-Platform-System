@@ -26,6 +26,15 @@ export default defineConfig({
   test: {
     projects: [
       {
+        resolve: {
+          alias: {
+            '@domain': resolve(__dirname, 'src/domain'),
+            '@application': resolve(__dirname, 'src/application'),
+            '@infrastructure': resolve(__dirname, 'src/infrastructure'),
+            '@interfaces': resolve(__dirname, 'src/interfaces'),
+            '@shared': resolve(__dirname, 'src/shared'),
+          },
+        },
         test: {
           name: 'unit',
           include: ['src/**/*.test.ts', 'src/**/*.test.tsx'],
@@ -38,6 +47,15 @@ export default defineConfig({
         },
       },
       {
+        resolve: {
+          alias: {
+            '@domain': resolve(__dirname, 'src/domain'),
+            '@application': resolve(__dirname, 'src/application'),
+            '@infrastructure': resolve(__dirname, 'src/infrastructure'),
+            '@interfaces': resolve(__dirname, 'src/interfaces'),
+            '@shared': resolve(__dirname, 'src/shared'),
+          },
+        },
         test: {
           name: 'integration',
           include: ['src/**/*.integration.test.ts'],

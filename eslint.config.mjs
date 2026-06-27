@@ -23,6 +23,18 @@ export default tseslint.config(
   // ── TypeScript — strict preset (no type-project required at Stage 0) ──────
   ...tseslint.configs.strict,
 
+  // ── Override: honour underscore-prefixed intentionally-unused parameters ───
+  // Required when implementing interfaces that mandate a param signature the
+  // concrete class does not use (e.g. in-memory fakes). Standard TS convention.
+  {
+    rules: {
+      '@typescript-eslint/no-unused-vars': [
+        'error',
+        { argsIgnorePattern: '^_', varsIgnorePattern: '^_' },
+      ],
+    },
+  },
+
   // ── TSDoc + jsdoc rules ───────────────────────────────────────────────────
   {
     plugins: {

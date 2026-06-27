@@ -16,8 +16,8 @@ build/
 # Drizzle
 drizzle/meta/
 
-# Storage (local adapter)
-storage/
+# Storage (local adapter — only root-level directory, not src/infrastructure/storage/)
+/storage/
 
 # Testing
 coverage/
