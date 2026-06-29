@@ -218,6 +218,115 @@ describe.skipIf(!DB_URL || !APP_URL)('BOLA — raw RLS proof', () => {
     });
   });
 
+  // ── Write-path BOLA proofs ────────────────────────────────────────────────
+  // RLS WITH CHECK blocks cross-tenant writes at the DB layer.
+  // UPDATE/DELETE: USING clause hides tenant B rows → 0 rows affected.
+  // INSERT: WITH CHECK fires on mismatched tenant_id → throws.
+  // Superuser re-reads confirm the DB state is actually unchanged.
+
+  describe('write-path (registrations table)', () => {
+    it('[raw SQL] tenant A cannot UPDATE tenant B registration (0 rows affected, row unchanged)', async () => {
+      const affected = await asAppTenant(BOLA_TENANT_A, (tx) =>
+        tx
+          .update(schema.registrations)
+          .set({ status: 'cancelled' })
+          .where(eq(schema.registrations.id, BOLA_REGISTRATION_B))
+          .returning(),
+      );
+      expect(affected).toHaveLength(0);
+
+      // Superuser re-read confirms the row was not mutated.
+      const [row] = await superDb
+        .select()
+        .from(schema.registrations)
+        .where(eq(schema.registrations.id, BOLA_REGISTRATION_B));
+      expect(row?.status).toBe('pending');
+    });
+
+    it('[raw SQL] tenant A cannot DELETE tenant B registration (0 rows affected, row still exists)', async () => {
+      const deleted = await asAppTenant(BOLA_TENANT_A, (tx) =>
+        tx
+          .delete(schema.registrations)
+          .where(eq(schema.registrations.id, BOLA_REGISTRATION_B))
+          .returning(),
+      );
+      expect(deleted).toHaveLength(0);
+
+      // Superuser re-read confirms the row still exists.
+      const [row] = await superDb
+        .select()
+        .from(schema.registrations)
+        .where(eq(schema.registrations.id, BOLA_REGISTRATION_B));
+      expect(row).toBeDefined();
+    });
+
+    it('[raw SQL] tenant A cannot INSERT a registration with tenant B tenant_id (WITH CHECK violation)', async () => {
+      await expect(
+        asAppTenant(BOLA_TENANT_A, (tx) =>
+          tx.insert(schema.registrations).values({
+            id: crypto.randomUUID(),
+            tenantId: BOLA_TENANT_B,
+            participantId: BOLA_PARTICIPANT_B,
+            eventId: BOLA_EVENT_B,
+            status: 'pending',
+            createdAt: new Date(),
+            updatedAt: new Date(),
+          }),
+        ),
+      ).rejects.toThrow();
+    });
+  });
+
+  describe('write-path (payments table)', () => {
+    it('[raw SQL] tenant A cannot UPDATE tenant B payment (0 rows affected, row unchanged)', async () => {
+      const affected = await asAppTenant(BOLA_TENANT_A, (tx) =>
+        tx
+          .update(schema.payments)
+          .set({ status: 'CONFIRMED' })
+          .where(eq(schema.payments.id, BOLA_PAYMENT_B))
+          .returning(),
+      );
+      expect(affected).toHaveLength(0);
+
+      // Superuser re-read confirms the row was not mutated.
+      const [row] = await superDb
+        .select()
+        .from(schema.payments)
+        .where(eq(schema.payments.id, BOLA_PAYMENT_B));
+      expect(row?.status).toBe('PENDING');
+    });
+
+    it('[raw SQL] tenant A cannot DELETE tenant B payment (0 rows affected, row still exists)', async () => {
+      const deleted = await asAppTenant(BOLA_TENANT_A, (tx) =>
+        tx.delete(schema.payments).where(eq(schema.payments.id, BOLA_PAYMENT_B)).returning(),
+      );
+      expect(deleted).toHaveLength(0);
+
+      // Superuser re-read confirms the row still exists.
+      const [row] = await superDb
+        .select()
+        .from(schema.payments)
+        .where(eq(schema.payments.id, BOLA_PAYMENT_B));
+      expect(row).toBeDefined();
+    });
+
+    it('[raw SQL] tenant A cannot INSERT a payment with tenant B tenant_id (WITH CHECK violation)', async () => {
+      await expect(
+        asAppTenant(BOLA_TENANT_A, (tx) =>
+          tx.insert(schema.payments).values({
+            id: crypto.randomUUID(),
+            tenantId: BOLA_TENANT_B,
+            registrationId: BOLA_REGISTRATION_B,
+            amount: 100,
+            status: 'PENDING',
+            createdAt: new Date(),
+            updatedAt: new Date(),
+          }),
+        ),
+      ).rejects.toThrow();
+    });
+  });
+
   // ── Adapter-level BOLA proofs ─────────────────────────────────────────────
   // These verify the Drizzle adapters return NotFoundError (not a data leak)
   // when a cross-tenant lookup reaches the DB. The raw SQL proofs above are
