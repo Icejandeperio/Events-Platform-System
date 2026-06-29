@@ -38,12 +38,33 @@ export interface StoredFile {
 }
 
 /**
+ * A file retrieved from storage, with MIME type derived from magic bytes.
+ *
+ * @remarks
+ * Used by the authenticated serve route to stream file bytes to the client
+ * without trusting any stored MIME metadata — the type is always re-derived
+ * from the actual content signature (SECURITY.md §4).
+ */
+export interface RetrievedFile {
+  /** Raw file bytes. */
+  readonly buffer: Buffer;
+  /**
+   * MIME type derived from magic-byte inspection of `buffer`.
+   * Never taken from stored metadata or client-supplied headers.
+   */
+  readonly mimeType: string;
+  /** Size in bytes. */
+  readonly sizeBytes: number;
+}
+
+/**
  * Driven port — blob/file storage for user-uploaded content.
  *
  * @remarks
  * Proof-of-payment images and other participant uploads are stored via this
- * port. `InMemoryFileStorage` is used in tests; a Vercel Blob or R2 adapter
- * replaces it in production (ARCHITECTURE.md §5, FEATURES.md §gateway_payments).
+ * port. `InMemoryFileStorage` is used in tests; `LocalDiskStorageAdapter` is
+ * used for local dev; a Vercel Blob or R2 adapter replaces it in production
+ * (ARCHITECTURE.md §5, FEATURES.md §gateway_payments).
  * Never return a direct storage URL to the client — generate a signed / CDN URL
  * through `getUrl()` to avoid broken links and enforce access control (SECURITY.md §4).
  */
@@ -51,11 +72,22 @@ export interface FileStoragePort {
   /**
    * Stores a file at the given key; overwrites if the key already exists.
    *
-   * @param key - The storage object path (e.g. `"tenants/<tid>/payments/<id>.jpg"`).
+   * @param key - The storage object path (e.g. `"tenants/<tid>/payments/<uuid>"`).
    * @param file - The file data to store.
    * @returns Metadata for the stored file, or `DomainError` on storage failure.
    */
   store(key: string, file: FileUpload): Promise<Result<StoredFile, DomainError>>;
+
+  /**
+   * Retrieves a stored file's raw bytes and MIME type (derived from magic bytes).
+   *
+   * @remarks
+   * Used by the authenticated serve route. The returned `mimeType` is derived
+   * from the file's magic bytes at retrieval time — never from stored metadata.
+   * @param key - The storage object path returned by `store()`.
+   * @returns The file bytes and detected MIME type, or `DomainError` if not found.
+   */
+  retrieve(key: string): Promise<Result<RetrievedFile, DomainError>>;
 
   /**
    * Generates a time-limited access URL for a stored file.
