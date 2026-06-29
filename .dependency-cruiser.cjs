@@ -32,7 +32,11 @@ module.exports = {
       name: 'no-application-importing-infrastructure',
       comment: 'application defines ports; infrastructure implements them — not the reverse',
       severity: 'error',
-      from: { path: '^src/application' },
+      from: {
+        path: '^src/application',
+        // Test files are composition roots: they wire fakes into use cases.
+        pathNot: '/__tests__/',
+      },
       to: { path: '^src/infrastructure' },
     },
     {
