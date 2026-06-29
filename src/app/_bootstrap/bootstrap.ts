@@ -1,8 +1,10 @@
+import { join } from 'node:path';
 import { drizzle } from 'drizzle-orm/postgres-js';
 import postgres from 'postgres';
 import { InMemoryParticipantRepository } from '@infrastructure/participants/fakes/in-memory-participant-repository';
 import { FakePaymentProvider } from '@infrastructure/payment-provider/fakes/fake-payment-provider';
 import { InMemoryFileStorage } from '@infrastructure/storage/fakes/in-memory-file-storage';
+import { LocalDiskStorageAdapter } from '@infrastructure/storage/local-disk-storage';
 import { FakeNotifier } from '@infrastructure/notifications/fakes/fake-notifier';
 import { StubClock } from '@infrastructure/clock/fakes/stub-clock';
 import { SequentialIdFake } from '@infrastructure/id/fakes/sequential-id';
@@ -123,9 +125,29 @@ export function bootstrapDev(): AppDependencies {
     consentRepository: new DrizzleConsentRepository(db),
     auditLog: new DrizzleAuditLog(db),
     paymentProvider: new FakePaymentProvider(),
-    fileStorage: new InMemoryFileStorage(),
+    fileStorage: new LocalDiskStorageAdapter(join(process.cwd(), 'storage')),
     notifier: new FakeNotifier(),
     clock: new SystemClock(),
     idProvider: new CryptoIdAdapter(),
   };
+}
+
+/** Module-level singleton — created once per process, safe for Next.js route handlers. */
+let _devDeps: AppDependencies | undefined;
+
+/**
+ * Returns the singleton `AppDependencies` for development route handlers.
+ *
+ * @remarks
+ * Lazily initializes `bootstrapDev()` on the first call. Module-level
+ * singletons are safe in Next.js App Router (one instance per cold start).
+ * Never call in unit tests — use `bootstrapFakes()` instead.
+ *
+ * @returns The shared `AppDependencies` instance for the current process.
+ */
+export function getDevDependencies(): AppDependencies {
+  if (_devDeps === undefined) {
+    _devDeps = bootstrapDev();
+  }
+  return _devDeps;
 }

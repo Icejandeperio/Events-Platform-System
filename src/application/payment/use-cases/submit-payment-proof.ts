@@ -52,7 +52,7 @@ export interface SubmitPaymentProofDeps {
  * @remarks
  * Responsibilities (in order):
  * 1. Validate file type and size at the use-case level (defense in depth;
- *    magic-byte validation also happens in `LocalFileStorageAdapter` — SECURITY §4).
+ *    magic-byte validation also happens in `LocalDiskStorageAdapter` — SECURITY §4).
  * 2. Load the payment and assert it is in `PENDING` or `REJECTED` state.
  * 3. Verify the caller owns the associated registration (BOLA guard).
  * 4. Store the file via `FileStoragePort` under a UUID-based key.

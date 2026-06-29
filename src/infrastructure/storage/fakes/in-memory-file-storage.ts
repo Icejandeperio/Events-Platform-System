@@ -5,6 +5,7 @@ import type { DomainError } from '@shared/errors';
 import type {
   FileStoragePort,
   FileUpload,
+  RetrievedFile,
   StoredFile,
 } from '@application/storage/ports/file-storage.port';
 
@@ -46,6 +47,20 @@ export class InMemoryFileStorage implements FileStoragePort {
       mimeType: entry.mimeType,
       storedAt: entry.storedAt,
     });
+  }
+
+  /**
+   * Returns the stored file bytes and MIME type.
+   *
+   * @param key - The storage object path.
+   * @returns The file data, or `NotFoundError` if the key has not been stored.
+   */
+  async retrieve(key: string): Promise<Result<RetrievedFile, DomainError>> {
+    const entry = this.files.get(key);
+    if (entry === undefined) {
+      return err(new NotFoundError('StoredFile', key));
+    }
+    return ok({ buffer: entry.buffer, mimeType: entry.mimeType, sizeBytes: entry.sizeBytes });
   }
 
   /**

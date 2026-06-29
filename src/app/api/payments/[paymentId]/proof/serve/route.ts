@@ -1,0 +1,89 @@
+import { NextRequest, NextResponse } from 'next/server';
+import { auth } from '@infrastructure/auth/auth';
+import { TenantId } from '@domain/value-objects/tenant-id';
+import { getDevDependencies } from '../../../../../_bootstrap/bootstrap';
+import { detectMimeType } from '@infrastructure/storage/magic-bytes';
+
+/**
+ * `GET /api/payments/[paymentId]/proof/serve` — serve a payment proof file.
+ *
+ * @remarks
+ * Security controls applied in order (SECURITY.md §4):
+ * 1. Session required (401 if absent).
+ * 2. Active organization required (tenant from session).
+ * 3. Payment lookup via tenant-scoped repository — RLS blocks cross-tenant access.
+ * 4. `proofKey` existence check (proof must have been uploaded).
+ * 5. File bytes retrieved from storage; magic bytes re-validated on serve.
+ * 6. Response headers: `Content-Disposition: attachment`, `X-Content-Type-Options: nosniff`,
+ *    `Content-Type` from magic bytes (never from stored metadata), `Cache-Control: private, no-store`.
+ *
+ * @param request - The incoming Next.js request.
+ * @param context - Route context; `params.paymentId` is the target payment UUIDv4.
+ * @returns 200 with file bytes on success; 401/404/500 on failure.
+ */
+export async function GET(
+  request: NextRequest,
+  context: { params: Promise<{ paymentId: string }> },
+): Promise<NextResponse> {
+  const { paymentId } = await context.params;
+
+  // 1. Require a valid session.
+  const session = await auth.api.getSession({ headers: request.headers });
+  if (!session) {
+    return new NextResponse('Authentication required.', { status: 401 });
+  }
+
+  // 2. Resolve tenant from the session's active organization.
+  const tenantIdStr = (session.session as Record<string, unknown>)['activeOrganizationId'] as
+    | string
+    | null
+    | undefined;
+  if (!tenantIdStr) {
+    return new NextResponse('No active organization on session.', { status: 401 });
+  }
+  const tenantIdResult = TenantId.create(tenantIdStr);
+  if (!tenantIdResult.ok) {
+    return new NextResponse('Invalid tenant identifier.', { status: 400 });
+  }
+  const tenantId = tenantIdResult.value;
+
+  const deps = getDevDependencies();
+
+  // 3. Load payment — RLS ensures cross-tenant access returns NotFoundError.
+  const paymentResult = await deps.paymentRepository.findById(paymentId, tenantId);
+  if (!paymentResult.ok) {
+    return new NextResponse('Payment not found.', { status: 404 });
+  }
+  const payment = paymentResult.value;
+
+  // 4. Proof must have been uploaded.
+  if (!payment.proofKey) {
+    return new NextResponse('No proof has been uploaded for this payment.', { status: 404 });
+  }
+
+  // 5. Retrieve file bytes from storage.
+  const fileResult = await deps.fileStorage.retrieve(payment.proofKey);
+  if (!fileResult.ok) {
+    return new NextResponse('Proof file not found.', { status: 404 });
+  }
+
+  // 6. Re-validate magic bytes at the HTTP boundary (SECURITY.md §4).
+  // Never set Content-Type from stored metadata — always derive from file content.
+  const contentType = detectMimeType(fileResult.value.buffer);
+  if (contentType === null) {
+    return new NextResponse('Stored file has an invalid content signature.', { status: 500 });
+  }
+
+  // 7. Stream with security headers.
+  // Uint8Array is required — Buffer<ArrayBufferLike> is not assignable to BodyInit.
+  return new NextResponse(new Uint8Array(fileResult.value.buffer), {
+    status: 200,
+    headers: {
+      'Content-Type': contentType,
+      'Content-Disposition': 'attachment',
+      'X-Content-Type-Options': 'nosniff',
+      'Content-Length': String(fileResult.value.sizeBytes),
+      'Cache-Control': 'private, no-store',
+    },
+  });
+}
