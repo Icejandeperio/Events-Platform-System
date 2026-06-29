@@ -8,18 +8,28 @@ import { detectMimeType } from '@infrastructure/storage/magic-bytes';
  * `GET /api/payments/[paymentId]/proof/serve` — serve a payment proof file.
  *
  * @remarks
+ * **Authorization rule (M3c):**
+ * - `owner` (tenant_admin) and `admin` (staff): may fetch any payment proof within the tenant.
+ * - `member`: blocked — no user→participant binding exists yet (M3d will add participant
+ *   self-service access once the Better Auth user ↔ participant link is wired).
+ *
+ * Rationale: staff reviewing proofs is the primary M3c use case. Permitting any tenant
+ * member without an ownership check would let participants read each other's proofs.
+ * Blocking `member` entirely is the safe default until M3d provides the ownership path.
+ *
  * Security controls applied in order (SECURITY.md §4):
  * 1. Session required (401 if absent).
  * 2. Active organization required (tenant from session).
- * 3. Payment lookup via tenant-scoped repository — RLS blocks cross-tenant access.
- * 4. `proofKey` existence check (proof must have been uploaded).
- * 5. File bytes retrieved from storage; magic bytes re-validated on serve.
- * 6. Response headers: `Content-Disposition: attachment`, `X-Content-Type-Options: nosniff`,
+ * 3. Role check: `owner` or `admin` only (403 for `member`).
+ * 4. Payment lookup via tenant-scoped repository — RLS blocks cross-tenant access.
+ * 5. `proofKey` existence check (proof must have been uploaded).
+ * 6. File bytes retrieved from storage; magic bytes re-validated on serve.
+ * 7. Response headers: `Content-Disposition: attachment`, `X-Content-Type-Options: nosniff`,
  *    `Content-Type` from magic bytes (never from stored metadata), `Cache-Control: private, no-store`.
  *
  * @param request - The incoming Next.js request.
  * @param context - Route context; `params.paymentId` is the target payment UUIDv4.
- * @returns 200 with file bytes on success; 401/404/500 on failure.
+ * @returns 200 with file bytes on success; 401/403/404/500 on failure.
  */
 export async function GET(
   request: NextRequest,
@@ -47,34 +57,44 @@ export async function GET(
   }
   const tenantId = tenantIdResult.value;
 
+  // 3. Role check — owner (tenant_admin) and admin (staff) only.
+  // `member` is blocked until M3d wires the user→participant link for ownership checks.
+  const activeMember = await auth.api.getActiveMember({ headers: request.headers });
+  const memberRole = (activeMember as Record<string, unknown> | null)?.['role'] as
+    | string
+    | undefined;
+  if (memberRole !== 'owner' && memberRole !== 'admin') {
+    return new NextResponse('Staff or admin role required.', { status: 403 });
+  }
+
   const deps = getDevDependencies();
 
-  // 3. Load payment — RLS ensures cross-tenant access returns NotFoundError.
+  // 4. Load payment — RLS ensures cross-tenant access returns NotFoundError.
   const paymentResult = await deps.paymentRepository.findById(paymentId, tenantId);
   if (!paymentResult.ok) {
     return new NextResponse('Payment not found.', { status: 404 });
   }
   const payment = paymentResult.value;
 
-  // 4. Proof must have been uploaded.
+  // 5. Proof must have been uploaded.
   if (!payment.proofKey) {
     return new NextResponse('No proof has been uploaded for this payment.', { status: 404 });
   }
 
-  // 5. Retrieve file bytes from storage.
+  // 6. Retrieve file bytes from storage.
   const fileResult = await deps.fileStorage.retrieve(payment.proofKey);
   if (!fileResult.ok) {
     return new NextResponse('Proof file not found.', { status: 404 });
   }
 
-  // 6. Re-validate magic bytes at the HTTP boundary (SECURITY.md §4).
+  // 7. Re-validate magic bytes at the HTTP boundary (SECURITY.md §4).
   // Never set Content-Type from stored metadata — always derive from file content.
   const contentType = detectMimeType(fileResult.value.buffer);
   if (contentType === null) {
     return new NextResponse('Stored file has an invalid content signature.', { status: 500 });
   }
 
-  // 7. Stream with security headers.
+  // 8. Stream with security headers.
   // Uint8Array is required — Buffer<ArrayBufferLike> is not assignable to BodyInit.
   return new NextResponse(new Uint8Array(fileResult.value.buffer), {
     status: 200,
