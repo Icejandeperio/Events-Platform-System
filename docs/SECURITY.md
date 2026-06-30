@@ -12,6 +12,7 @@ failure mode. Comparing the session user ID to a URL parameter is **not**
 sufficient.
 
 **Mandatory mitigations (all of them, layered):**
+
 1. **RLS** at the database — the backstop (see `docs/ARCHITECTURE.md` §4).
 2. **Explicit ownership checks** in the use-case layer for every object accessed
    by ID — verify the object's `tenant_id` matches the caller's tenant AND the
@@ -27,7 +28,7 @@ sufficient.
   for admin roles. No long-lived bearer tokens for human users.
 - **Passwords:** hash with **Argon2id** (fallback bcrypt cost ≥ 12). Never store
   or log plaintext. No hardcoded or default credentials anywhere — ever.
-- **MFA** required for `tenant_admin` and `super_admin`.
+- **MFA** required for `tenant_admin` and `super_admin`. _(Deferred to Stage 3 — see ADR 0005)_
 - **RBAC roles:** `super_admin` (platform), `tenant_admin` (partner owner),
   `staff` (operations/marshal), `participant`. Function-level checks on every
   admin/super-admin route (OWASP API5 BFLA).
@@ -45,6 +46,7 @@ sufficient.
 ## 4. Secure file upload (payment screenshots)
 
 Treat every upload as hostile. Required controls:
+
 - **Validate by magic bytes / signature**, not the client `Content-Type` or
   extension. Allowlist `image/jpeg`, `image/png`, `application/pdf` only.
 - **Random UUID filename** — never trust the user-supplied name (blocks path

@@ -133,21 +133,27 @@ export function bootstrapDev(): AppDependencies {
 }
 
 /** Module-level singleton — created once per process, safe for Next.js route handlers. */
-let _devDeps: AppDependencies | undefined;
+let _appDeps: AppDependencies | undefined;
 
 /**
- * Returns the singleton `AppDependencies` for development route handlers.
+ * Returns the singleton `AppDependencies` for the current environment.
  *
  * @remarks
- * Lazily initializes `bootstrapDev()` on the first call. Module-level
- * singletons are safe in Next.js App Router (one instance per cold start).
+ * In `NODE_ENV=production`, throws immediately — production adapters
+ * (Vercel Blob, Resend, Paymongo) are not wired until Stage 3.
+ * In all other environments, lazily initializes `bootstrapDev()`.
  * Never call in unit tests — use `bootstrapFakes()` instead.
  *
  * @returns The shared `AppDependencies` instance for the current process.
  */
-export function getDevDependencies(): AppDependencies {
-  if (_devDeps === undefined) {
-    _devDeps = bootstrapDev();
+export function getAppDependencies(): AppDependencies {
+  if (_appDeps !== undefined) return _appDeps;
+  if (process.env['NODE_ENV'] === 'production') {
+    throw new Error(
+      'Production dependencies are not configured for Stage 3. ' +
+        'Wire Vercel Blob, Resend, and Paymongo adapters before deploying.',
+    );
   }
-  return _devDeps;
+  _appDeps = bootstrapDev();
+  return _appDeps;
 }
