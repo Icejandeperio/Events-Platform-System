@@ -32,6 +32,11 @@ export interface RegisterForEventCommand {
   readonly email: Email;
   /** Optional — not all registrations include a phone number. */
   readonly phone: PhoneNumber | null;
+  /**
+   * Better Auth `user.id` of the registering user — set when the participant
+   * has a platform account; omit for the guest flow.
+   */
+  readonly userId?: string;
   /** Exact text of the privacy notice displayed to the participant. */
   readonly consentText: string;
   /** Version tag of the privacy notice in effect (e.g. `"v1.0"`). */
@@ -165,6 +170,8 @@ export class RegisterForEvent {
         createdAt: pEntityResult.value.createdAt,
         updatedAt: pEntityResult.value.updatedAt,
         ...(pEntityResult.value.phone !== undefined ? { phone: pEntityResult.value.phone } : {}),
+        // Link the platform account when one is provided (guest flow omits this).
+        ...(cmd.userId !== undefined ? { userId: cmd.userId } : {}),
       };
 
       const savePResult = await this.deps.participants.save(pRecord);

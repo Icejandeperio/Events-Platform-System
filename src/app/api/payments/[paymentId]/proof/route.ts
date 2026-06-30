@@ -13,11 +13,14 @@ const MAX_UPLOAD_BYTES = 8 * 1024 * 1024;
  * `POST /api/payments/[paymentId]/proof` — upload a payment proof screenshot.
  *
  * @remarks
- * Security controls applied in order (SECURITY.md §4):
- * 1. Session + active org required; any authenticated member may upload (role: owner/admin/member).
- * 2. Size capped at 8 MB before reading all bytes.
- * 3. Magic-byte validation — JPEG/PNG/PDF only; Content-Type header is ignored.
- * 4. BOLA ownership guard delegated to `SubmitPaymentProof` use case.
+ * Security controls applied in order (SECURITY.md §4, SECURITY.md §1 BOLA):
+ * 1. Session + active org required (any role may upload).
+ * 2. Participant derived from `session.user.id → participants.user_id` — never from client input.
+ *    A session user with no linked participant record is denied (403).
+ * 3. Size capped at 8 MB before reading all bytes.
+ * 4. Magic-byte validation — JPEG/PNG/PDF only; Content-Type header is ignored.
+ * 5. BOLA ownership guard in `SubmitPaymentProof`: the payment's registration must
+ *    belong to the session-derived participant.
  *
  * @param request - The incoming Next.js request.
  * @param context - Route context; `params.paymentId` is the target payment UUIDv4.
@@ -29,7 +32,7 @@ export async function POST(
 ): Promise<NextResponse> {
   const { paymentId } = await context.params;
 
-  // 1. Require session + active org (any role may upload; BOLA is use-case-level).
+  // 1. Require session + active org (any role may upload).
   const authResult = await requireRole(request, ['owner', 'admin', 'member']);
   if (!authResult.ok) return authResult.response;
 
@@ -39,7 +42,24 @@ export async function POST(
   }
   const tenantId = tenantIdResult.value;
 
-  // 2. Parse multipart form data.
+  // 2. Derive participant from session — never from the request body (SECURITY §1, BOLA).
+  const deps = getAppDependencies();
+  const participantResult = await deps.participantRepository.findByUserId(
+    authResult.ctx.userId,
+    tenantId,
+  );
+  if (!participantResult.ok) {
+    return NextResponse.json({ error: 'Internal error resolving participant.' }, { status: 500 });
+  }
+  if (participantResult.value === null) {
+    return NextResponse.json(
+      { error: 'No participant record is linked to this account.' },
+      { status: 403 },
+    );
+  }
+  const participantId = participantResult.value.id;
+
+  // 3. Parse multipart form data.
   let formData: FormData;
   try {
     formData = await request.formData();
@@ -48,16 +68,11 @@ export async function POST(
   }
 
   const rawFile = formData.get('file');
-  const participantId = formData.get('participantId');
-
   if (!(rawFile instanceof File)) {
     return NextResponse.json({ error: 'A "file" field is required.' }, { status: 400 });
   }
-  if (typeof participantId !== 'string' || participantId.trim() === '') {
-    return NextResponse.json({ error: 'A "participantId" field is required.' }, { status: 400 });
-  }
 
-  // 3. Enforce size limit before reading all bytes (SECURITY.md §4).
+  // 4. Enforce size limit before reading all bytes (SECURITY.md §4).
   if (rawFile.size > MAX_UPLOAD_BYTES) {
     return NextResponse.json(
       {
@@ -67,7 +82,7 @@ export async function POST(
     );
   }
 
-  // 4. Validate magic bytes — ignore the client-supplied Content-Type (SECURITY.md §4).
+  // 5. Validate magic bytes — ignore the client-supplied Content-Type (SECURITY.md §4).
   const buffer = Buffer.from(await rawFile.arrayBuffer());
   const detectedMime = detectMimeType(buffer);
   if (detectedMime === null) {
@@ -77,8 +92,7 @@ export async function POST(
     );
   }
 
-  // 5. Execute use case — BOLA ownership guard is inside the use case.
-  const deps = getAppDependencies();
+  // 6. Execute use case — BOLA ownership guard: payment's registration must belong to this participant.
   const useCase = new SubmitPaymentProof({
     payments: deps.paymentRepository,
     registrations: deps.registrationRepository,
@@ -90,7 +104,7 @@ export async function POST(
   const result = await useCase.execute({
     tenantId,
     paymentId,
-    participantId: participantId.trim(),
+    participantId,
     file: {
       buffer,
       mimeType: detectedMime,

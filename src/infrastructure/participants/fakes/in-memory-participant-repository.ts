@@ -67,6 +67,28 @@ export class InMemoryParticipantRepository implements ParticipantRepositoryPort 
   }
 
   /**
+   * Looks up a participant by their linked `user.id` within the given tenant.
+   *
+   * @param userId - The Better Auth user ID to look up.
+   * @param tenantId - The tenant scope.
+   * @returns The matching record, `null` if absent; never fails in this fake.
+   *
+   * @remarks
+   * An empty `userId` returns `null` immediately — a falsy value must never
+   * match a participant whose `userId` is undefined/null (null-comparison guard).
+   */
+  async findByUserId(
+    userId: string,
+    tenantId: TenantId,
+  ): Promise<Result<ParticipantRecord | null, DomainError>> {
+    if (!userId) return ok(null);
+    const match = [...this.records.values()].find(
+      (r) => r.tenantId.equals(tenantId) && r.userId === userId,
+    );
+    return ok(match ?? null);
+  }
+
+  /**
    * Removes a participant from the in-memory store.
    *
    * @param id - The participant's UUIDv4.
