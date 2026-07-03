@@ -20,13 +20,46 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           BRANCH="${{ github.ref_name }}"
-          EXISTING=$(gh pr list --repo "$GITHUB_REPOSITORY" --head "$BRANCH" --state open --json number --jq '.[].number' 2>/dev/null || true)
-          if [ -n "$EXISTING" ]; then
+
+          # Pre-check: exit early if a PR is already open for this branch.
+          EXISTING=$(gh pr list \
+            --repo "$GITHUB_REPOSITORY" \
+            --head "$BRANCH" \
+            --state open \
+            --json number \
+            --jq '.[0].number' \
+            2>/dev/null || true)
+          if [ -n "$EXISTING" ] && [ "$EXISTING" != "null" ]; then
             echo "PR #$EXISTING already exists for $BRANCH — skipping"
             exit 0
           fi
+
           TYPE="${BRANCH%%/*}"
           SLUG="${BRANCH#*/}"
           TITLE="${TYPE}: ${SLUG//-/ }"
-          gh pr create --repo "$GITHUB_REPOSITORY" --base main --head "$BRANCH" --draft --title "$TITLE" --body "Automated draft PR. Update this description before merging."
+
+          # Create the PR. If creation fails because one was opened in a race
+          # (concurrent pushes), re-check and exit 0 rather than failing red.
+          if ! gh pr create \
+              --repo "$GITHUB_REPOSITORY" \
+              --base main \
+              --head "$BRANCH" \
+              --draft \
+              --title "$TITLE" \
+              --body "Automated draft PR. Update this description before merging."; then
+            EXISTING=$(gh pr list \
+              --repo "$GITHUB_REPOSITORY" \
+              --head "$BRANCH" \
+              --state open \
+              --json number \
+              --jq '.[0].number' \
+              2>/dev/null || true)
+            if [ -n "$EXISTING" ] && [ "$EXISTING" != "null" ]; then
+              echo "PR #$EXISTING already exists (race condition) — skipping"
+              exit 0
+            fi
+            echo "Failed to create PR and no existing PR found" >&2
+            exit 1
+          fi
+
           echo "Draft PR opened for $BRANCH"
