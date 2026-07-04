@@ -2,6 +2,7 @@ import { join } from 'node:path';
 import { drizzle } from 'drizzle-orm/postgres-js';
 import postgres from 'postgres';
 import { InMemoryParticipantRepository } from '@infrastructure/participants/fakes/in-memory-participant-repository';
+import { DrizzleParticipantRepository } from '@infrastructure/participants/drizzle-participant-repository';
 import { FakePaymentProvider } from '@infrastructure/payment-provider/fakes/fake-payment-provider';
 import { InMemoryFileStorage } from '@infrastructure/storage/fakes/in-memory-file-storage';
 import { LocalDiskStorageAdapter } from '@infrastructure/storage/local-disk-storage';
@@ -101,10 +102,6 @@ export function bootstrapFakes(): AppDependencies {
  * The postgres connection is kept alive for the lifetime of the returned object;
  * call `.destroy()` on the underlying `postgres` client when shutting down.
  *
- * The `participantRepository` remains in-memory for M3b; it will be replaced
- * with `DrizzleParticipantRepository` in M3d when the full registration UI and
- * Better Auth session wiring are in place.
- *
  * @returns A fully-wired `AppDependencies` using real Drizzle adapters and infrastructure.
  */
 export function bootstrapDev(): AppDependencies {
@@ -117,8 +114,7 @@ export function bootstrapDev(): AppDependencies {
   const db = drizzle(postgres(url), { schema });
 
   return {
-    // TODO(M3d): replace with DrizzleParticipantRepository once the auth/UI layer is in place.
-    participantRepository: new InMemoryParticipantRepository(),
+    participantRepository: new DrizzleParticipantRepository(db),
     eventRepository: new DrizzleEventRepository(db),
     registrationRepository: new DrizzleRegistrationRepository(db),
     paymentRepository: new DrizzlePaymentRepository(db),

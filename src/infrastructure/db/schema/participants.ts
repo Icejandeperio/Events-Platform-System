@@ -6,7 +6,7 @@
 
 import { pgPolicy, pgTable, text, timestamp, uuid } from 'drizzle-orm/pg-core';
 import { sql } from 'drizzle-orm';
-import { organization } from './auth';
+import { organization, user } from './auth';
 
 /**
  * Participants table — end customers who register for events.
@@ -27,8 +27,12 @@ export const participants = pgTable(
     tenantId: uuid('tenant_id')
       .notNull()
       .references(() => organization.id, { onDelete: 'restrict' }),
-    /** Nullable: guest participants may not have a platform account. */
-    userId: text('user_id'),
+    /**
+     * Nullable FK to `user.id` — set when the participant has a platform account.
+     * Guest participants (no account) leave this null. Set null on user deletion
+     * so the participation record survives account removal.
+     */
+    userId: text('user_id').references(() => user.id, { onDelete: 'set null' }),
     firstName: text('first_name').notNull(),
     lastName: text('last_name').notNull(),
     email: text('email').notNull(),

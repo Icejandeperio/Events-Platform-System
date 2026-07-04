@@ -67,6 +67,23 @@ export interface ParticipantRepositoryPort {
   save(record: ParticipantRecord): Promise<Result<void, DomainError>>;
 
   /**
+   * Looks up a participant by their linked Better Auth `user.id` within the given tenant.
+   *
+   * @param userId - The Better Auth `user.id` string (text, not UUID).
+   * @param tenantId - The tenant scope.
+   * @returns The participant record, `null` if none is linked, or `DomainError` on failure.
+   *
+   * @remarks
+   * An empty or falsy `userId` must return `null` — never match a participant
+   * whose `user_id` is `NULL` in the database (`NULL ≠ NULL` in SQL, but an
+   * explicit guard prevents any accidental match at the application layer too).
+   */
+  findByUserId(
+    userId: string,
+    tenantId: TenantId,
+  ): Promise<Result<ParticipantRecord | null, DomainError>>;
+
+  /**
    * Removes a participant from the tenant's data store.
    *
    * @param id - The participant's UUIDv4.
